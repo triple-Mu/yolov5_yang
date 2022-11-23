@@ -69,7 +69,7 @@ GIT_INFO = check_git_info()
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
     save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, yolov6 = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
-        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze,opt.yolov6
+        opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.yolov6
     callbacks.run('on_pretrain_routine_start')
 
     # Directories
@@ -121,9 +121,10 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     if pretrained:
         if yolov6:
             ckpt = torch.load(weights, map_location='cpu')
-            model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)
+            model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors'))
             ckpt['file'] = weights
-            model = load_state_dict_yaml(ckpt, model)
+            load_state_dict_yaml(ckpt, model)
+            model.to(device)
         else:
             with torch_distributed_zero_first(LOCAL_RANK):
                 weights = attempt_download(weights)  # download if not found locally
@@ -493,7 +494,7 @@ def parse_opt(known=False):
     parser.add_argument('--upload_dataset', nargs='?', const=True, default=False, help='Upload data, "val" option')
     parser.add_argument('--bbox_interval', type=int, default=-1, help='Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='Version of dataset artifact to use')
-    parser.add_argument('--yolov6', action='store_true',default=False, help='train multi-class data as single-class')
+    parser.add_argument('--yolov6', action='store_true', default=False, help='train multi-class data as single-class')
 
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
@@ -648,6 +649,8 @@ def run(**kwargs):
         setattr(opt, k, v)
     main(opt)
     return opt
+
+
 def load_state_dict_yaml(ckpt, model):
     """Load weights from checkpoint file, only assign weights those layers' name and shape are match."""
     # state_dict = ckpt['model'].float().state_dict()
@@ -663,7 +666,7 @@ def load_state_dict_yaml(ckpt, model):
             if weight.shape == model_dict[key].shape:
                 ckpt_number1 = ckpt_number1 + 1
             else:
-                print(key+" shape is not the same ")
+                print(key + " shape is not the same ")
         else:
             print(key + "is not in model ")
     print("******************")
@@ -674,7 +677,7 @@ def load_state_dict_yaml(ckpt, model):
     state_dict = {k: v for k, v in ckpt["model"].items() if k in model_dict and v.shape == model_dict[k].shape}
     model.load_state_dict(state_dict, strict=False)
     del ckpt, state_dict
-    return model
+
 
 if __name__ == "__main__":
     opt = parse_opt()
