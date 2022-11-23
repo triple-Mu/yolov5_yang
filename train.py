@@ -122,7 +122,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         if yolov6:
             ckpt = torch.load(weights, map_location='cpu')
             model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)
-            model = load_state_dict_yaml(weights, model, map_location=device)
+            ckpt['file'] = weights
+            model = load_state_dict_yaml(ckpt, model)
         else:
             with torch_distributed_zero_first(LOCAL_RANK):
                 weights = attempt_download(weights)  # download if not found locally
@@ -647,9 +648,8 @@ def run(**kwargs):
         setattr(opt, k, v)
     main(opt)
     return opt
-def load_state_dict_yaml(weights, model, map_location=None):
+def load_state_dict_yaml(ckpt, model):
     """Load weights from checkpoint file, only assign weights those layers' name and shape are match."""
-    ckpt = torch.load(weights, map_location=map_location)
     # state_dict = ckpt['model'].float().state_dict()
     # state_dict = ckpt['model'].state_dict()
     model_dict = model.state_dict()
@@ -667,14 +667,13 @@ def load_state_dict_yaml(weights, model, map_location=None):
         else:
             print(key + "is not in model ")
     print("******************")
-    print("transform_weight: " + str(ckpt_number1) + "/" + ckpt_number + " from " + weights)
-    print("transform_model_weight: " + str(ckpt_number1) + "/" + model_number + " from " + weights)
+    print("transform_weight: " + str(ckpt_number1) + "/" + ckpt_number + " from " + ckpt['file'])
+    print("transform_model_weight: " + str(ckpt_number1) + "/" + model_number + " from " + ckpt['file'])
     print("******************")
 
-    model_state_dict = model.state_dict()
-    state_dict = {k: v for k, v in ckpt["model"].items() if k in model_state_dict and v.shape == model_state_dict[k].shape}
+    state_dict = {k: v for k, v in ckpt["model"].items() if k in model_dict and v.shape == model_dict[k].shape}
     model.load_state_dict(state_dict, strict=False)
-    del ckpt, state_dict, model_state_dict
+    del ckpt, state_dict
     return model
 
 if __name__ == "__main__":
